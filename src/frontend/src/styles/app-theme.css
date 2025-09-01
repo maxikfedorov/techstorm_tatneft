@@ -1,0 +1,142 @@
+/* src/frontend/src/styles/app-theme.css */
+
+/* 1) Базовый reset (дополняет antd reset) */
+:root, html, body, #root {
+  height: 100%;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 2) Тематические переменные (светлая тема по умолчанию) */
+:root {
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+
+  --bg-page: 240 18% 98%;          /* h s l */
+  --bg-elev-1: 0 0% 100%;
+  --bg-elev-1-alpha: 0.6;          /* стеклянная прозрачность */
+
+  --border: 220 14% 92%;
+  --border-strong: 220 10% 85%;
+
+  --text: 220 14% 20%;
+  --text-muted: 220 10% 45%;
+
+  --primary: 242 69% 64%;          /* близко к #667eea */
+  --success: 145 58% 46%;
+  --warning: 38 92% 54%;
+  --error: 0 79% 63%;
+
+  --blur: 18px;
+  --shadow-soft: 0 10px 30px rgba(20, 20, 40, 0.08);
+  --shadow-hard: 0 20px 60px rgba(20, 20, 40, 0.12);
+  --ring: 0 0 0 3px rgba(102, 126, 234, 0.22);
+
+  --glass-border: 1px solid hsla(var(--border) / 0.5);
+  --glass-bg: hsla(var(--bg-elev-1) / var(--bg-elev-1-alpha));
+
+  --card-padding: 14px;
+  --section-gap: 12px;
+}
+
+/* 3) Dark theme (переключается через data-theme="dark" на html) */
+html[data-theme="dark"] {
+  --bg-page: 220 18% 8%;
+  --bg-elev-1: 220 12% 12%;
+  --bg-elev-1-alpha: 0.45;
+
+  --border: 220 10% 28%;
+  --border-strong: 220 8% 22%;
+
+  --text: 220 15% 92%;
+  --text-muted: 220 10% 65%;
+
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --shadow-hard: 0 20px 60px rgba(0, 0, 0, 0.36);
+  --ring: 0 0 0 3px rgba(102, 126, 234, 0.28);
+}
+
+/* 4) Базовая страница */
+body {
+  background: linear-gradient(160deg, hsl(var(--bg-page)) 0%, hsl(var(--bg-page)) 60%, hsla(240, 40%, 70%, 0.12) 100%);
+  color: hsl(var(--text));
+}
+
+/* 5) Универсальные утилиты стекла */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+
+.glass-card {
+  composes: glass;
+  padding: var(--card-padding);
+}
+
+.glass-toolbar {
+  composes: glass;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.glass-sider {
+  composes: glass;
+  padding: 12px;
+  height: 100%;
+}
+
+/* 6) Мягкий hover/focus по умолчанию */
+a, button, [role="button"], .ant-btn {
+  transition: all 160ms ease;
+}
+.ant-btn:focus-visible, .ant-input:focus, .ant-select-focused, .ant-card:hover {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* 7) Совместимость с Ant Design — контейнеры и фон */
+.ant-layout {
+  min-height: 100vh;
+  background: transparent; /* фон задаем body или через token */
+}
+.ant-layout-content {
+  padding: 16px;
+}
+.ant-card, .ant-collapse, .ant-list, .ant-form-item {
+  background: transparent;
+}
+
+/* 8) Цветовые токены через CSS переменные (для плавного соответствия antd) */
+:root {
+  --antd-bg-layout: hsl(var(--bg-page));
+  --antd-bg-container: hsla(var(--bg-elev-1) / var(--bg-elev-1-alpha));
+  --antd-text: hsl(var(--text));
+  --antd-primary: hsl(var(--primary));
+}
+
+/* 9) Тонкие декоративные разделители */
+.hr {
+  height: 1px;
+  background: hsla(var(--border) / 0.6);
+  border: 0;
+}
+
+/* 10) Малые типографические утилиты */
+.muted { color: hsl(var(--text-muted)); }
+.hint { font-size: 12px; color: hsl(var(--text-muted)); }
+.section { display: grid; gap: var(--section-gap); }
+.stack { display: grid; gap: 8px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 992px) { .grid-2 { grid-template-columns: 1fr; } }

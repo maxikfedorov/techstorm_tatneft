@@ -1,236 +1,195 @@
 // src/frontend/src/components/AIAssistant.jsx
-import { useState, memo } from 'react'
-import { 
-  Button, 
-  Select, 
-  Input, 
-  Alert, 
-  Space
-} from 'antd'
-import { 
-  SendOutlined, 
-  LoadingOutlined, 
-  ThunderboltOutlined,
-  SettingOutlined,
-  DatabaseOutlined
-} from '@ant-design/icons'
+import { useState, memo, useCallback, useMemo } from 'react'
+import { Button, Select, Input, Alert, Space, Typography, Divider, Badge } from 'antd'
+import { SendOutlined, LoadingOutlined, ThunderboltOutlined, SettingOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { useAI } from '../hooks/useAI'
 import { useAppContext } from '../context/AppContext'
 import { DIAGRAM_TYPES, MODES } from '../constants/diagrams'
-import './AIAssistant.css'
 
 const { TextArea } = Input
 
-const AIAssistant = memo(({ code, onCodeUpdate, className = '' }) => {
+const box = {
+  border: '1px solid #f0f0f0',
+  borderRadius: 8,
+  background: '#fff',
+  display: 'grid',
+  gap: 12,
+  padding: 16,
+}
+
+const section = { display: 'grid', gap: 8 }
+const row = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
+
+const AIAssistant = memo(function AIAssistant({
+  code,
+  onCodeUpdate,
+  title = 'ИИ ассистент',
+  paramTitle = 'Параметры',
+  inputTitle = 'Ввод',
+  submitLabelCreate = 'Создать',
+  submitLabelUpdate = 'Изменить',
+  maxPrompt = 2048,
+  toolbarExtra,
+  onSubmit,
+  onModeChange,
+  onTypeChange,
+  className, // не используется в «сыром» виде
+  style,
+}) {
   const [prompt, setPrompt] = useState('')
   const { state, dispatch } = useAppContext()
   const { isLoading, error, response, generateDiagram } = useAI()
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return
-    
+  const spinIcon = useMemo(() => <LoadingOutlined style={{ fontSize: 18 }} spin />, [])
+
+  const handleGenerate = useCallback(async () => {
+    const clean = prompt.trim()
+    if (!clean) return
+    const payload = {
+      prompt: clean,
+      current_code: code,
+      diagram_type: state.diagramType,
+      mode: state.mode,
+    }
     try {
-      const result = await generateDiagram({
-        prompt,
-        current_code: code,
-        diagram_type: state.diagramType,
-        mode: state.mode
-      })
-      
+      const result = await generateDiagram(payload)
+      onSubmit?.(payload, result)
       if (result?.trim()) {
-        onCodeUpdate(result.trim())
+        onCodeUpdate?.(result.trim())
         setPrompt('')
       }
-    } catch (err) {
-      console.error('Generation failed:', err)
+    } catch (e) {
+      // Ошибки уже отображаются через error из хука
     }
-  }
+  }, [prompt, code, state.diagramType, state.mode, generateDiagram, onCodeUpdate, onSubmit])
 
-  const handleModeChange = (newMode) => {
-    dispatch({ type: 'SET_MODE', payload: newMode })
-  }
+  const handleModeChange = useCallback(
+    (newMode) => {
+      dispatch({ type: 'SET_MODE', payload: newMode })
+      onModeChange?.(newMode)
+    },
+    [dispatch, onModeChange]
+  )
 
-  const handleDiagramTypeChange = (newType) => {
-    dispatch({ type: 'SET_DIAGRAM_TYPE', payload: newType })
-  }
+  const handleDiagramTypeChange = useCallback(
+    (newType) => {
+      dispatch({ type: 'SET_DIAGRAM_TYPE', payload: newType })
+      onTypeChange?.(newType)
+    },
+    [dispatch, onTypeChange]
+  )
+
+  const submitText = state.mode === 'create' ? submitLabelCreate : submitLabelUpdate
+  const charCount = `${prompt.length}/${maxPrompt}`
 
   return (
-    <div className={`industrial-ai-assistant ${className}`}>
-      
-      {/* Панель состояния нейросети */}
-      <div className="neural-status-panel">
-        <div className="status-pipeline"></div>
-        <div className="glass-status-overlay">
-          <div className="neural-indicators">
-            <div className="neural-node active"></div>
-            <div className="neural-node active"></div>
-            <div className="neural-node processing"></div>
-          </div>
-          <div className="status-info">
-            <span className="neural-label">СТАТУС_СИСТЕМЫ</span>
-            <span className="neural-state">{isLoading ? 'ОБРАБОТКА' : 'ГОТОВ'}</span>
-          </div>
-          <div className="processing-load">
-            <span className="load-value">{isLoading ? '87%' : '12%'}</span>
-          </div>
-        </div>
+    <section style={{ ...box, ...style }} aria-live="polite" aria-busy={isLoading} role="form">
+      {/* Header */}
+      <div style={row}>
+        <Space>
+          <Typography.Text strong>{title}</Typography.Text>
+          <Badge status={isLoading ? 'processing' : 'success'} text={isLoading ? 'Обработка' : 'Готово'} />
+        </Space>
+        <div>{toolbarExtra}</div>
       </div>
 
-      {/* Секция параметров управления */}
-      <div className="control-parameters-section">
-        <div className="section-header">
-          <div className="section-pipeline"></div>
-          <div className="glass-section-header">
-            <SettingOutlined className="section-icon" />
-            <span className="section-title">ПАРАМЕТРЫ_УПРАВЛЕНИЯ</span>
-          </div>
-        </div>
+      <Divider style={{ margin: '8px 0' }} />
 
-        <div className="parameters-grid">
-          
-          {/* Выбор режима */}
-          <div className="parameter-block">
-            <div className="parameter-header">
-              <div className="param-indicator"></div>
-              <span className="param-label">РЕЖИМ_РАБОТЫ</span>
-            </div>
-            <div className="glass-input-container">
-              <Select
-                value={state.mode}
-                onChange={handleModeChange}
-                className="industrial-select"
-                options={MODES}
-                suffixIcon={<ThunderboltOutlined />}
-              />
-              <div className="input-glass-overlay"></div>
-            </div>
-          </div>
+      {/* Parameters */}
+      <div style={section} aria-label="Параметры генерации">
+        <Space align="center" style={{ justifyContent: 'space-between' }}>
+          <Space>
+            <SettingOutlined />
+            <Typography.Text>{paramTitle}</Typography.Text>
+          </Space>
+        </Space>
 
-          {/* Выбор типа диаграммы */}
-          <div className="parameter-block">
-            <div className="parameter-header">
-              <div className="param-indicator"></div>
-              <span className="param-label">ТИП_ДИАГРАММЫ</span>
-            </div>
-            <div className="glass-input-container">
-              <Select
-                value={state.diagramType}
-                onChange={handleDiagramTypeChange}
-                className="industrial-select"
-                options={DIAGRAM_TYPES}
-                suffixIcon={<DatabaseOutlined />}
-              />
-              <div className="input-glass-overlay"></div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Интерфейс нейронного ввода */}
-      <div className="neural-input-section">
-        <div className="section-header">
-          <div className="section-pipeline"></div>
-          <div className="glass-section-header">
-            <SendOutlined className="section-icon" />
-            <span className="section-title">ИНТЕРФЕЙС_ВВОДА</span>
-          </div>
-        </div>
-
-        <div className="input-interface">
-          <div className="input-label-container">
-            <span className="input-label">
-              {state.mode === 'create' ? 'ПРОМПТ_СОЗДАНИЯ' : 'ПРОМПТ_ИЗМЕНЕНИЯ'}
-            </span>
-            <div className="input-metrics">
-              <span className="char-count">{prompt.length}/2048</span>
-            </div>
-          </div>
-          
-          <div className="clear-textarea-container">
-            <TextArea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={
-                state.mode === 'create' 
-                  ? 'Опишите диаграмму, которую хотите создать...' 
-                  : 'Опишите, что нужно изменить в диаграмме...'
-              }
-              rows={5}
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={row}>
+            <Typography.Text type="secondary">Режим</Typography.Text>
+            <Select
+              value={state.mode}
+              onChange={handleModeChange}
+              options={MODES}
+              suffixIcon={<ThunderboltOutlined />}
+              style={{ minWidth: 160 }}
               disabled={isLoading}
-              className="clear-industrial-textarea"
-              maxLength={2048}
+              aria-label="Режим работы"
+            />
+          </div>
+
+          <div style={row}>
+            <Typography.Text type="secondary">Тип диаграммы</Typography.Text>
+            <Select
+              value={state.diagramType}
+              onChange={handleDiagramTypeChange}
+              options={DIAGRAM_TYPES}
+              suffixIcon={<DatabaseOutlined />}
+              style={{ minWidth: 160 }}
+              disabled={isLoading}
+              aria-label="Тип диаграммы"
             />
           </div>
         </div>
       </div>
 
-      {/* Управление обработкой */}
-      <div className="processing-control">
-        <div className="control-pipeline"></div>
-        <div className="glass-control-container">
-          <Button
-            className={`industrial-process-btn ${isLoading ? 'processing' : ''}`}
-            block
-            icon={isLoading ? <LoadingOutlined className="processing-icon" /> : <ThunderboltOutlined />}
-            onClick={handleGenerate}
-            disabled={isLoading || !prompt.trim()}
-            loading={isLoading}
-          >
-            <span className="btn-text">
-              {isLoading ? 'ОБРАБОТКА_В_ПРОЦЕССЕ...' : 
-               state.mode === 'create' ? 'ВЫПОЛНИТЬ_СОЗДАНИЕ' : 'ВЫПОЛНИТЬ_ИЗМЕНЕНИЕ'}
-            </span>
-          </Button>
-        </div>
+      {/* Input */}
+      <div style={section} aria-label="Ввод запроса">
+        <Space align="center" style={{ justifyContent: 'space-between' }}>
+          <Space>
+            <SendOutlined />
+            <Typography.Text>{inputTitle}</Typography.Text>
+          </Space>
+          <Typography.Text type="secondary">{charCount}</Typography.Text>
+        </Space>
+
+        <TextArea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder={state.mode === 'create' ? 'Опишите диаграмму...' : 'Опишите необходимые изменения...'}
+          rows={5}
+          disabled={isLoading}
+          maxLength={maxPrompt}
+        />
       </div>
 
-      {/* Система оповещения об ошибках */}
+      {/* Submit */}
+      <div>
+        <Button
+          block
+          type="primary"
+          icon={isLoading ? spinIcon : <ThunderboltOutlined />}
+          onClick={handleGenerate}
+          disabled={isLoading || !prompt.trim()}
+          loading={isLoading}
+        >
+          {isLoading ? 'Обработка...' : submitText}
+        </Button>
+      </div>
+
+      {/* Error */}
       {error && (
-        <div className="error-alert-system">
-          <div className="error-pipeline"></div>
-          <div className="glass-error-container">
-            <div className="error-header">
-              <div className="error-indicator"></div>
-              <span className="error-title">СИСТЕМНАЯ_ОШИБКА</span>
-            </div>
-            <div className="error-message">
-              <code className="error-code">{error}</code>
-            </div>
-          </div>
-        </div>
+        <Alert
+          type="error"
+          showIcon
+          message="Ошибка генерации"
+          description={String(error)}
+        />
       )}
 
-      {/* Терминал вывода */}
+      {/* Output */}
       {response && (
-        <div className="output-terminal">
-          <div className="terminal-header">
-            <div className="terminal-pipeline"></div>
-            <div className="glass-terminal-header">
-              <div className="terminal-indicators">
-                <div className="terminal-dot active"></div>
-                <div className="terminal-dot active"></div>
-                <div className="terminal-dot standby"></div>
-              </div>
-              <span className="terminal-title">ТЕРМИНАЛ_ВЫВОДА</span>
-              <div className="terminal-stats">
-                <span className="output-size">{response.length} БАЙТ</span>
-              </div>
-            </div>
+        <div role="region" aria-label="Результат" style={{ border: '1px solid #f0f0f0', borderRadius: 6, padding: 12 }}>
+          <div style={{ ...row, marginBottom: 8 }}>
+            <Typography.Text strong>Терминал вывода</Typography.Text>
+            <Typography.Text type="secondary">{`${(response || '').length} байт`}</Typography.Text>
           </div>
-          
-          <div className="glass-terminal-container">
-            <div className="terminal-content">
-              <pre className="terminal-output">
-                <code>{response}</code>
-              </pre>
-            </div>
-            <div className="terminal-glass-overlay"></div>
-          </div>
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <code>{response}</code>
+          </pre>
         </div>
       )}
-
-    </div>
+    </section>
   )
 })
 

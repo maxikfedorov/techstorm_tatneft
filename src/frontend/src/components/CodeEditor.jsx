@@ -1,43 +1,85 @@
 // src/frontend/src/components/CodeEditor.jsx
-import { memo } from 'react'
+import { memo, useMemo, useCallback } from 'react'
 import Editor from '@monaco-editor/react'
-import { Button, Space, message } from 'antd'
+import { Button, Space, message, Typography } from 'antd'
 import { CopyOutlined } from '@ant-design/icons'
 import { useAppContext } from '../context/AppContext'
 
-const CodeEditor = memo(({ value, onChange, className = '', ...props }) => {
+const box = {
+  border: '1px solid #f0f0f0',
+  borderRadius: 8,
+  background: '#fff',
+  display: 'flex',
+  flexDirection: 'column',
+}
+
+const toolbarBox = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '8px 12px',
+  borderBottom: '1px solid #f0f0f0',
+}
+
+const contentBox = (h) => ({
+  height: h ?? 640,
+})
+
+const CodeEditor = memo(function CodeEditor({
+  value,
+  onChange,
+  height = 360,
+  toolbarTitle = 'Редактор кода',
+  toolbarExtra,
+  onCopy,
+  editorOptionsMerge,
+  defaultLanguage = 'markdown',
+  className, // не используется в «сыром» варианте
+  style,
+  ...props
+}) {
   const { state } = useAppContext()
-  
-  const editorOptions = {
-    minimap: { enabled: state.settings?.minimap ?? true },
-    fontSize: state.settings?.fontSize ?? 14,
-    wordWrap: state.settings?.wordWrap ? 'on' : 'off',
-    lineNumbers: 'on',
-    scrollBeyondLastLine: false,
-    automaticLayout: true,
-    tabSize: 2,
-    padding: { top: 16 },
-    ...props.options
-  }
 
-  const handleEditorChange = (newValue) => {
-    onChange?.(newValue || '')
-  }
+  const editorOptions = useMemo(
+    () => ({
+      minimap: { enabled: state.settings?.minimap ?? true },
+      fontSize: state.settings?.fontSize ?? 14,
+      wordWrap: state.settings?.wordWrap ? 'on' : 'off',
+      lineNumbers: 'on',
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      tabSize: 2,
+      padding: { top: 12 },
+      ...editorOptionsMerge,
+      ...props.options,
+    }),
+    [state.settings, editorOptionsMerge, props.options]
+  )
 
-  const handleCopy = async () => {
+  const handleEditorChange = useCallback(
+    (newValue) => onChange?.(newValue || ''),
+    [onChange]
+  )
+
+  const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(value)
+      await navigator.clipboard.writeText(value ?? '')
       message.success('Код скопирован в буфер обмена')
+      onCopy?.(true)
     } catch (err) {
       message.error('Не удалось скопировать код')
+      onCopy?.(false, err)
     }
-  }
+  }, [value, onCopy])
 
   return (
-    <div className={`code-editor ${className}`} style={{ height: '100%' }}>
-      <div className="code-editor__toolbar">
+    <section style={{ ...box, ...style }} {...props}>
+      <div role="toolbar" aria-label="Редактор — панель инструментов" style={toolbarBox}>
         <Space>
-          <Button 
+          <Typography.Text strong>{toolbarTitle}</Typography.Text>
+        </Space>
+        <Space>
+          <Button
             type="text"
             icon={<CopyOutlined />}
             onClick={handleCopy}
@@ -45,22 +87,22 @@ const CodeEditor = memo(({ value, onChange, className = '', ...props }) => {
           >
             Копировать
           </Button>
+          {toolbarExtra}
         </Space>
       </div>
-      
-      <div className="code-editor__content" style={{ height: 'calc(100% - 45px)' }}>
+
+      <div role="region" aria-label="Область редактирования кода" style={contentBox(height)}>
         <Editor
-          height="100%" // Убедитесь что это 100%
+          height="100%"
           width="100%"
-          defaultLanguage="markdown"
+          defaultLanguage={defaultLanguage}
           value={value}
           onChange={handleEditorChange}
           theme={state.theme === 'dark' ? 'vs-dark' : 'light'}
           options={editorOptions}
-          {...props}
         />
       </div>
-    </div>
+    </section>
   )
 })
 
