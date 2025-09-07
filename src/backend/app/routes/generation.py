@@ -1,5 +1,4 @@
-# src\backend\app\routes\generation.py
-
+# src/backend/app/routes/generation.py
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -8,13 +7,18 @@ from app.services.generation_service import generation_service
 from app.utils.prompt_templates import get_available_diagram_types
 from app.core.security import verify_token
 from app.core.database import get_redis, get_database
+from app.core.config import settings
+
 
 router = APIRouter()
 security = HTTPBearer()
 
+
 class GenerationRequest(BaseModel):
     prompt: str
     diagram_type: str = "flowchart"
+    model: Optional[str] = None  # Добавляем поле выбора модели
+
 
 class GenerationResponse(BaseModel):
     mermaid_code: str
@@ -23,9 +27,12 @@ class GenerationResponse(BaseModel):
     is_valid: bool
     validation_error: Optional[str] = None
 
+
 class ModificationRequest(BaseModel):
     diagram_id: str
     modification_prompt: str
+    model: Optional[str] = None  # Добавляем поле выбора модели
+
 
 async def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """Get current authenticated user ID"""
@@ -56,6 +63,7 @@ async def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depend
     
     return str(user["_id"])
 
+
 @router.get("/test")
 async def test_llm_connection():
     """Test LM Studio connection"""
@@ -64,9 +72,19 @@ async def test_llm_connection():
     
     return {
         "llm_connected": is_connected,
-        "llm_url": llm_service.base_url,
-        "model": llm_service.model
+        "llm_url": llm_service.base_url
+        # Убрали поле "model" так как теперь модель выбирается для каждого запроса
     }
+
+
+@router.get("/models")
+async def get_available_models():
+    """Get list of available LLM models"""
+    return {
+        "available_models": settings.available_models,
+        "default_model": settings.default_model
+    }
+
 
 @router.get("/types")
 async def get_diagram_types():
@@ -76,13 +94,14 @@ async def get_diagram_types():
         "default": "flowchart"
     }
 
+
 @router.post("/", response_model=GenerationResponse)
 async def generate_diagram(
     request: GenerationRequest,
     user_id: str = Depends(get_current_user_id)
 ):
     """Generate diagram with advanced prompt templates"""
-    print(f"Generation request from user {user_id}: {request.diagram_type}")
+    print(f"Generation request from user {user_id}: {request.diagram_type}, model: {request.model}")
     
     # Validate diagram type
     if request.diagram_type not in get_available_diagram_types():
@@ -91,10 +110,18 @@ async def generate_diagram(
             detail=f"Invalid diagram type. Available: {get_available_diagram_types()}"
         )
     
+    # Validate model if provided
+    if request.model and request.model not in settings.available_models:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {settings.available_models}"
+        )
+    
     result, error = await generation_service.generate_and_log(
         user_id=user_id,
         prompt=request.prompt,
-        diagram_type=request.diagram_type
+        diagram_type=request.diagram_type,
+        model=request.model
     )
     
     if not result:
@@ -111,18 +138,27 @@ async def generate_diagram(
         validation_error=error
     )
 
+
 @router.post("/modify", response_model=GenerationResponse)
 async def modify_diagram(
     request: ModificationRequest,
     user_id: str = Depends(get_current_user_id)
 ):
     """Modify existing diagram"""
-    print(f"Modification request from user {user_id} for diagram {request.diagram_id}")
+    print(f"Modification request from user {user_id} for diagram {request.diagram_id}, model: {request.model}")
+    
+    # Validate model if provided
+    if request.model and request.model not in settings.available_models:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {settings.available_models}"
+        )
     
     result, error = await generation_service.modify_diagram(
         user_id=user_id,
         diagram_id=request.diagram_id,
-        modification_prompt=request.modification_prompt
+        modification_prompt=request.modification_prompt,
+        model=request.model
     )
     
     if not result:
@@ -138,6 +174,7 @@ async def modify_diagram(
         is_valid=error is None,
         validation_error=error
     )
+
 
 @router.get("/history")
 async def get_generation_history(

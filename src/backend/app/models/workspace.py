@@ -1,9 +1,12 @@
+# src/backend/app/models/workspace.py
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
+
 class WorkspaceCreate(BaseModel):
     diagram_id: Optional[str] = None  # None для новой диаграммы
+
 
 class WorkspaceResponse(BaseModel):
     diagram_id: Optional[str]
@@ -14,14 +17,18 @@ class WorkspaceResponse(BaseModel):
     has_unsaved_changes: bool
     generation_history: List[dict]
 
+
 class WorkspaceGeneration(BaseModel):
     prompt: str
     diagram_type: str = "flowchart"
+    model: Optional[str] = None  # Добавляем поле выбора модели
+
 
 class WorkspaceModification(BaseModel):
     modification_prompt: str
+    model: Optional[str] = None  # Добавляем поле выбора модели
+
 
 class WorkspaceSave(BaseModel):
     title: str
     description: Optional[str] = None
-

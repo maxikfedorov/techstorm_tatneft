@@ -1,10 +1,13 @@
+# src/backend/app/services/workspace_service.py
 from datetime import datetime
 from typing import Optional, Dict, List
 from app.core.database import get_database
 from app.services.diagram_service import diagram_service
 from app.services.generation_service import generation_service
 from app.models.diagram import DiagramCreate
+from app.core.config import settings
 from bson import ObjectId
+
 
 class WorkspaceService:
     
@@ -85,14 +88,26 @@ class WorkspaceService:
         print(f"Updated workspace for user {user_id}")
         return workspace
     
-    async def generate_in_workspace(self, user_id: str, diagram_id: Optional[str], prompt: str, diagram_type: str) -> dict:
+    async def generate_in_workspace(
+        self, 
+        user_id: str, 
+        diagram_id: Optional[str], 
+        prompt: str, 
+        diagram_type: str,
+        model: Optional[str] = None  # Добавляем параметр модели
+    ) -> dict:
         """Generate diagram in workspace context"""
+        
+        # Используем переданную модель или дефолтную
+        selected_model = model or settings.default_model
+        print(f"Generating in workspace with model: {selected_model}")
         
         result, error = await generation_service.generate_and_log(
             user_id=user_id,
             prompt=prompt,
             diagram_type=diagram_type,
-            diagram_id=diagram_id
+            diagram_id=diagram_id,
+            model=selected_model  # Передаем выбранную модель
         )
         
         if not result:
@@ -112,6 +127,7 @@ class WorkspaceService:
         generation_entry = {
             "prompt": prompt,
             "diagram_type": diagram_type,
+            "model": selected_model,  # Добавляем модель в историю
             "code": result,
             "timestamp": datetime.utcnow().isoformat(),
             "is_valid": error is None
@@ -119,13 +135,20 @@ class WorkspaceService:
         
         workspace["generation_history"].append(generation_entry)
         
-        print(f"Generated diagram in workspace for user {user_id}")
+        print(f"Generated diagram in workspace for user {user_id} with {selected_model}")
         return workspace
     
-    async def modify_in_workspace(self, user_id: str, diagram_id: str, modification_prompt: str) -> dict:
+    async def modify_in_workspace(
+        self, 
+        user_id: str, 
+        diagram_id: str, 
+        modification_prompt: str,
+        model: Optional[str] = None  # Добавляем параметр модели
+    ) -> dict:
         """Modify diagram in workspace context"""
         
-        print(f"Workspace modification: user {user_id}, diagram {diagram_id}")
+        selected_model = model or settings.default_model
+        print(f"Workspace modification: user {user_id}, diagram {diagram_id}, model: {selected_model}")
         
         if not diagram_id or diagram_id == "new":
             raise ValueError("Cannot modify diagram: invalid diagram ID")
@@ -134,7 +157,8 @@ class WorkspaceService:
             result, error = await generation_service.modify_diagram(
                 user_id=user_id,
                 diagram_id=diagram_id,
-                modification_prompt=modification_prompt
+                modification_prompt=modification_prompt,
+                model=selected_model  # Передаем выбранную модель
             )
             
             print(f"Modification service result: success={result is not None}, error={error}")
@@ -154,6 +178,7 @@ class WorkspaceService:
             modification_entry = {
                 "prompt": f"Modification: {modification_prompt}",
                 "diagram_type": workspace["diagram_type"],
+                "model": selected_model,  # Добавляем модель в историю
                 "code": result,
                 "timestamp": datetime.utcnow().isoformat(),
                 "is_modification": True
@@ -161,7 +186,7 @@ class WorkspaceService:
             
             workspace["generation_history"].append(modification_entry)
             
-            print(f"Modified diagram in workspace for user {user_id}")
+            print(f"Modified diagram in workspace for user {user_id} with {selected_model}")
             return workspace
             
         except Exception as e:
@@ -220,5 +245,6 @@ class WorkspaceService:
         
         print(f"Saved workspace to diagram {saved_id}")
         return saved_id
+
 
 workspace_service = WorkspaceService()

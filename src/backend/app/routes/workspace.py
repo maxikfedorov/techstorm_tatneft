@@ -11,6 +11,7 @@ from app.services.workspace_service import workspace_service
 from app.utils.prompt_templates import get_available_diagram_types
 from app.core.security import verify_token
 from app.core.database import get_redis, get_database
+from app.core.config import settings
 
 router = APIRouter()
 security = HTTPBearer()
@@ -95,7 +96,7 @@ async def generate_in_workspace(
     user_id: str = Depends(get_current_user_id)
 ):
     """Generate diagram in workspace"""
-    print(f"Generating in workspace {diagram_id} for user {user_id}")
+    print(f"Generating in workspace {diagram_id} for user {user_id}, model: {generation_data.model}")
     
     # Validate diagram type
     if generation_data.diagram_type not in get_available_diagram_types():
@@ -104,12 +105,20 @@ async def generate_in_workspace(
             detail=f"Invalid diagram type. Available: {get_available_diagram_types()}"
         )
     
+    # Validate model if provided
+    if generation_data.model and generation_data.model not in settings.available_models:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {settings.available_models}"
+        )
+    
     try:
         workspace = await workspace_service.generate_in_workspace(
             user_id=user_id,
             diagram_id=diagram_id if diagram_id != "new" else None,
             prompt=generation_data.prompt,
-            diagram_type=generation_data.diagram_type
+            diagram_type=generation_data.diagram_type,
+            model=generation_data.model  # Передаем выбранную модель
         )
         return WorkspaceResponse(**workspace)
     except ValueError as e:
@@ -124,7 +133,7 @@ async def generate_in_new_workspace(
     user_id: str = Depends(get_current_user_id)
 ):
     """Generate diagram in new workspace"""
-    print(f"Generating in new workspace for user {user_id}")
+    print(f"Generating in new workspace for user {user_id}, model: {generation_data.model}")
     
     # Validate diagram type
     if generation_data.diagram_type not in get_available_diagram_types():
@@ -133,12 +142,20 @@ async def generate_in_new_workspace(
             detail=f"Invalid diagram type. Available: {get_available_diagram_types()}"
         )
     
+    # Validate model if provided
+    if generation_data.model and generation_data.model not in settings.available_models:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {settings.available_models}"
+        )
+    
     try:
         workspace = await workspace_service.generate_in_workspace(
             user_id=user_id,
             diagram_id=None,
             prompt=generation_data.prompt,
-            diagram_type=generation_data.diagram_type
+            diagram_type=generation_data.diagram_type,
+            model=generation_data.model  # Передаем выбранную модель
         )
         return WorkspaceResponse(**workspace)
     except ValueError as e:
@@ -146,6 +163,7 @@ async def generate_in_new_workspace(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
 
 @router.post("/{diagram_id}/modify", response_model=WorkspaceResponse)
 async def modify_in_workspace(
@@ -154,13 +172,21 @@ async def modify_in_workspace(
     user_id: str = Depends(get_current_user_id)
 ):
     """Modify diagram in workspace"""
-    print(f"Modifying workspace {diagram_id} for user {user_id}")
+    print(f"Modifying workspace {diagram_id} for user {user_id}, model: {modification_data.model}")
+    
+    # Validate model if provided
+    if modification_data.model and modification_data.model not in settings.available_models:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {settings.available_models}"
+        )
     
     try:
         workspace = await workspace_service.modify_in_workspace(
             user_id=user_id,
             diagram_id=diagram_id,
-            modification_prompt=modification_data.modification_prompt
+            modification_prompt=modification_data.modification_prompt,
+            model=modification_data.model  # Передаем выбранную модель
         )
         return WorkspaceResponse(**workspace)
     except ValueError as e:
@@ -168,7 +194,6 @@ async def modify_in_workspace(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-
 @router.post("/{diagram_id}/save")
 async def save_workspace(
     diagram_id: str,
@@ -213,3 +238,4 @@ async def save_new_workspace(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
