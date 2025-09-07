@@ -1,3 +1,5 @@
+# src\backend\app\routes\generation.py
+
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials

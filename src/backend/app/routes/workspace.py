@@ -1,3 +1,5 @@
+# src\backend\app\routes\workspace.py
+
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
