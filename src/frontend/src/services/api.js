@@ -1,12 +1,52 @@
-// src/frontend/src/services/api.js
-const base=import.meta.env.VITE_API_BASE_URL
-let token=''
-export const setToken=t=>token=t||''
-const hdr=()=>token?{'Authorization':'Bearer '+token}:{}
-const j=async(r)=>{if(!r.ok) throw new Error('http'); return r.json()}
-export const api={
-  get: (p)=>fetch(base+p,{headers:{...hdr()}}).then(j),
-  post:(p,b)=>fetch(base+p,{method:'POST',headers:{'Content-Type':'application/json',...hdr()},body:JSON.stringify(b)}).then(j)
-}
-export const aiMermaid=(b)=>api.post('/ai/mermaid',b)
-export default {api,setToken,aiMermaid}
+// frontend/src/services/api.js
+import axios from 'axios'
+import { useAuthStore } from '../store/authStore'
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+api.interceptors.request.use(config => {
+  console.log('API Request:', config.method?.toUpperCase(), config.url, config.data)
+  const token = useAuthStore.getState().token
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+}, error => {
+  console.error('Request Error:', error)
+  return Promise.reject(error)
+})
+
+api.interceptors.response.use(
+  response => {
+    console.log('API Response:', response.status, response.config.url, response.data)
+    return response
+  },
+  error => {
+    console.error('API Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+      url: error.config?.url
+    })
+    
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.log('Authorization failed, clearing auth state')
+      const { clearAuth } = useAuthStore.getState()
+      clearAuth()
+      
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login'
+      }
+    }
+    
+    return Promise.reject(error)
+  }
+)
+
+export default api
