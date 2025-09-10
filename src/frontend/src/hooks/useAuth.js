@@ -8,14 +8,24 @@ export const useAuth = () => {
   const { setAuth, clearAuth } = useAuthStore()
 
   const handleLogin = async credentials => {
-    const { data } = await login(credentials)
-    setAuth({ username: credentials.username }, data.access_token)
-    navigate('/dashboard')
+    try {
+      const { data } = await login(credentials)
+      setAuth({ username: credentials.username }, data.access_token)
+      navigate('/dashboard')
+      return data
+    } catch (error) {
+      throw error
+    }
   }
 
   const handleRegister = async values => {
-    await register(values)
-    await handleLogin({ username: values.username, password: values.password })
+    try {
+      await register(values)
+      navigate('/login')
+      return true
+    } catch (error) {
+      throw error
+    }
   }
 
   const logout = () => {
